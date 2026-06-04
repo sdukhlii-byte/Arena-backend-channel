@@ -1,0 +1,59 @@
+services:
+  # ── Telegram Bot (Background Worker) ────────────────────────────────────────
+  - type: worker
+    name: arena-bot
+    runtime: python
+    pythonVersion: "3.12.9"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      # Какой бренд этот инстанс обслуживает (см. brand.py → BRANDS)
+      - key: BRAND_ID
+        value: metaplay
+      # Секреты
+      - key: BOT_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PANDASCORE_KEY
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
+      # Необязательные оверрайды бренда (берётся из brand.py, если не задано)
+      - key: CTA_MODE            # product | channel
+        sync: false
+      - key: COINPLAY_URL        # product-режим
+        sync: false
+      - key: COINPLAY_REG_URL    # product-режим
+        sync: false
+      - key: CHANNEL_URL         # channel-режим
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: DB_PATH
+        value: users.json
+
+  # ── HTTP API (Web Service, кормит мини-аппку данными) ───────────────────────
+  - type: web
+    name: arena-api
+    runtime: python
+    pythonVersion: "3.12.9"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python api.py
+    envVars:
+      - key: BRAND_ID
+        value: metaplay
+      - key: BOT_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PANDASCORE_KEY
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
+      - key: MINI_APP_ORIGIN     # CORS: домен мини-аппки на Cloudflare
+        sync: false
+      - key: PORT
+        value: 8080
