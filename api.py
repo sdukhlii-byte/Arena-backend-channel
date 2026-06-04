@@ -6,6 +6,8 @@ Uses only stdlib (no aiohttp dependency needed).
 
 Endpoints:
   GET  /api/health
+  GET  /api/config                       — режим воронки (product/channel) + куда вести CTA.
+                                           Делает фронт зеркалом бэка: один источник правды.
   GET  /api/live
   GET  /api/upcoming
   GET  /api/picks?lang=en[&uid=123]     — uid → гейтинг пиков для неподписчиков
@@ -23,6 +25,7 @@ from urllib.parse import urlparse, parse_qs
 from predictions import generate_daily_predictions, apply_gate, _preds
 from livescore import fetch_match_context, get_live_esports, get_live_football, get_upcoming_esports, get_today_football
 from config import HONEST_STATS, CTA_GATE, CHANNEL_HANDLE, CHANNEL_URL
+from brand import BRAND, CTAMode
 import membership
 import analytics
 
@@ -72,6 +75,63 @@ def _cors_headers(body: bytes) -> list[tuple[str, str]]:
 
 async def handle_health() -> tuple[int, bytes]:
     return 200, _json_bytes({"status": "ok"})
+
+
+async def handle_config() -> tuple[int, bytes]:
+    """
+    Публичная идентичность бренда + РЕЖИМ воронки. Это «единый мозг» для фронта:
+    мини-апп рендерит product-оффер ИЛИ канальную подписку строго по mode отсюда,
+    ничего не хардкодя. Куда вести CTA — тоже берётся отсюда (cta.url / bot_username),
+    поэтому фронт и бэк физически не могут разъехаться по продукту/каналу.
+    Секреты не отдаём — только несекретная идентичность.
+    """
+    b = BRAND
+    is_channel = b.cta.mode is CTAMode.CHANNEL
+
+    offer = None
+    if not is_channel:
+        o = b.offer
+        offer = {
+            "bonus_pct":    o.bonus_pct,
+            "bonus_max":    o.bonus_max,
+            "free_spins":   o.free_spins,
+            "min_deposit":  o.min_deposit,
+            "wagering":     o.wagering,
+            "cashback_pct": o.cashback_pct,
+            "currencies":   o.currencies,
+            "currency":     o.currency,
+        }
+
+    we, wf = b.sport.wants_esports(), b.sport.wants_football()
+    if we and wf:
+        markets = {"en": "Football & Esports", "es": "Fútbol y Esports"}
+    elif wf:
+        markets = {"en": "Football", "es": "Fútbol"}
+    else:
+        markets = {"en": "Esports", "es": "Esports"}
+
+    return 200, _json_bytes({
+        "brand":        b.id,
+        "display_name": b.display_name,
+        "tagline":      b.tagline,                       # {en, es}
+        "character":    {"name": b.character.name, "role": b.character.role},
+        "mode":         b.cta.mode.value,                # "product" | "channel"
+        "show_offer":   not is_channel,                  # фронт прячет оффер в channel-режиме
+        "cta": {
+            "label":        b.cta.button_label,          # {en, es}
+            "url":          b.cta.primary_url(),         # channel_url (channel) | reg_url (product)
+            "channel":      b.cta.channel_handle or "",
+            "channel_url":  b.cta.channel_url or "",
+            "gate":         bool(b.cta.gate),
+            "bot_username": b.bot_username,              # для deep link t.me/<bot>?start=join
+            "partner_name": b.cta.partner_name or "",
+        },
+        "offer":            offer,                       # null в channel-режиме
+        "markets":          markets,
+        "honest_stats":     b.character.honest_stats,
+        "win_rate_display": b.character.win_rate_display,
+        "privacy_url":      b.privacy_url,
+    })
 
 
 async def handle_stats() -> tuple[int, bytes]:
@@ -225,6 +285,8 @@ async def handle_request(reader: asyncio.StreamReader, writer: asyncio.StreamWri
         try:
             if path == "/api/health":
                 status, body = await handle_health()
+            elif path == "/api/config":
+                status, body = await handle_config()
             elif path == "/api/stats":
                 status, body = await handle_stats()
             elif path == "/api/live":
