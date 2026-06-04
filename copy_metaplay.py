@@ -251,3 +251,29 @@ MORNING_DIGEST_FOOTER = {
     "en": "\n\n🎯 My picks drop at noon. Stay sharp.",
     "es": "\n\n🎯 Mis picks llegan al mediodía. Mantenete atento.",
 }
+
+# ── Подписка на канал: заглушки для совместимости ─────────────────────────────
+# metaplay ведёт в продукт (channel-флоу не используется), но messages.py
+# реэкспортит имена для ВСЕХ брендов — поэтому ключи должны существовать и здесь.
+JOIN_PROMPT = {
+    "en": (
+        "📣 *Join the channel — free*\n\n"
+        "Tap *Join* below, then hit *✅ I subscribed* to unlock the full reads."
+    ),
+    "es": (
+        "📣 *Unite al canal — gratis*\n\n"
+        "Tocá *Unirme* abajo y luego *✅ Ya me suscribí* para desbloquear las lecturas."
+    ),
+}
+
+JOIN_CHECK_BTN = {"en": "✅ I subscribed", "es": "✅ Ya me suscribí"}
+
+JOIN_OK = {
+    "en": "🔓 *Unlocked — you're in.* Full reads are yours now.",
+    "es": "🔓 *Desbloqueado — estás adentro.* Las lecturas completas ya son tuyas.",
+}
+
+JOIN_NOT_YET = {
+    "en": "Hmm — I don't see you in the channel yet. Tap *Join* above, then *✅ I subscribed* again.",
+    "es": "Mmm — todavía no te veo en el canal. Tocá *Unirme* arriba y luego *✅ Ya me suscribí* otra vez.",
+}

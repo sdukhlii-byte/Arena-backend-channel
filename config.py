@@ -35,7 +35,13 @@ CTA_MODE         = BRAND.cta.mode                 # CTAMode.PRODUCT | CTAMode.CH
 COINPLAY_URL     = BRAND.cta.click_url
 COINPLAY_REG_URL = BRAND.cta.primary_url()        # в channel-режиме = ссылка на канал
 CHANNEL_URL      = BRAND.cta.channel_url
+CHANNEL_HANDLE   = BRAND.cta.channel_handle
+CHANNEL_CHAT_REF = BRAND.cta.channel_chat_ref()   # для getChatMember ('@handle' / '-100…')
+CTA_GATE         = BRAND.cta.gate                 # гейтить контент за подпиской на канал
 PARTNER_NAME     = BRAND.cta.partner_name
+
+# ── Доверие / честность статистики ────────────────────────────────────────────
+HONEST_STATS     = BRAND.character.honest_stats   # True → только реальные накопленные цифры
 
 # ── Оффер ─────────────────────────────────────────────────────────────────────
 OFFER = {

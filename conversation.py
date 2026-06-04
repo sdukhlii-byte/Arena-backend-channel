@@ -30,6 +30,7 @@ from onboarding import (
 from messages import (
     BRIDGE, CTA_REGISTER, FTD_CELEBRATION,
     BARRIER_FALLBACK, GENERIC_FALLBACK,
+    JOIN_PROMPT, JOIN_CHECK_BTN, JOIN_OK, JOIN_NOT_YET,
 )
 from ftd_onboarding import start_repeat_machine
 from livescore import (
@@ -38,6 +39,8 @@ from livescore import (
 )
 from predictions import generate_daily_predictions, format_predictions_message, get_stats_display
 from media import send_pic, get_repeat_moment, sanitize_markdown
+import analytics
+import membership
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,65 @@ MENU_ACTIONS = {
 
 # ── Send helpers ──────────────────────────────────────────────────────────────
 
+# callback_data кнопки верификации подписки (рычаг №2)
+JOIN_CHECK_CB = "cb_join_check"
+
+
+def _cta_keyboard(lang: str) -> InlineKeyboardMarkup:
+    """
+    Единая inline-клавиатура CTA под текущий режим воронки.
+
+    PRODUCT → одна кнопка на регистрацию.
+    CHANNEL → кнопка вступления в канал + (если gate) кнопка «✅ Я подписался»,
+              которая проверяет членство через getChatMember и мгновенно
+              разблокирует контент. Конверсия внутри бота выше, чем через
+              выход в вебвью.
+    """
+    if BRAND.cta.mode is CTAMode.CHANNEL:
+        rows = [[InlineKeyboardButton(BRAND.cta.label(lang), url=COINPLAY_REG_URL)]]
+        if BRAND.cta.gate and membership.channel_configured():
+            rows.append([InlineKeyboardButton(
+                JOIN_CHECK_BTN.get(lang, JOIN_CHECK_BTN["en"]),
+                callback_data=JOIN_CHECK_CB,
+            )])
+        return InlineKeyboardMarkup(rows)
+    return InlineKeyboardMarkup([[InlineKeyboardButton(BRAND.cta.label(lang), url=COINPLAY_REG_URL)]])
+
+
+async def send_channel_join(bot: Bot, chat_id: int, lang: str):
+    """Нативное сообщение-приглашение в канал с верификацией (рычаг №2).
+
+    Вызывается из бота по deep-link `/start join` или команде /join — например,
+    когда мини-апп проксирует тап «подписаться» в бота, чтобы остаться внутри
+    одного потока Telegram без контекст-свитча наружу.
+    """
+    analytics.track("cta_view")
+    text = JOIN_PROMPT.get(lang, JOIN_PROMPT["en"])
+    sent = await send_pic(bot, chat_id, "cta", text, lang, reply_markup=_cta_keyboard(lang))
+    if not sent:
+        await _send(bot, chat_id, text, lang, inline=_cta_keyboard(lang))
+
+
+async def handle_join_check(bot: Bot, user_id: int, chat_id: int, lang: str) -> bool:
+    """
+    Колбэк «✅ Я подписался»: проверяем членство (getChatMember) без кэша и либо
+    подтверждаем доступ, либо мягко возвращаем к кнопке вступления.
+    Возвращает фактический статус членства.
+    """
+    analytics.track("cta_tap", user_id)
+    membership.invalidate(user_id)
+    member = await membership.is_member(user_id, use_cache=False)
+    if member:
+        if analytics.mark_join(user_id):
+            logger.info(f"Channel join confirmed: user={user_id}")
+        update_user(user_id, state=State.DEPOSITED)  # в channel-режиме = «подписан»
+        await _send(bot, chat_id, JOIN_OK.get(lang, JOIN_OK["en"]), lang)
+    else:
+        await _send(bot, chat_id, JOIN_NOT_YET.get(lang, JOIN_NOT_YET["en"]), lang,
+                    inline=_cta_keyboard(lang))
+    return member
+
+
 def _delay(text: str) -> float:
     return round(1.0 + min(len(text) / 160, 2.0), 1)
 
@@ -105,8 +167,7 @@ async def _send(bot: Bot, chat_id: int, text: str, lang: str, inline=None):
 
 
 async def _send_with_reg(bot: Bot, chat_id: int, text: str, lang: str):
-    label  = BRAND.cta.label(lang)
-    inline = InlineKeyboardMarkup([[InlineKeyboardButton(label, url=COINPLAY_REG_URL)]])
+    inline = _cta_keyboard(lang)
     await bot.send_chat_action(chat_id, "typing")
     await asyncio.sleep(_delay(text))
     await bot.send_message(
@@ -301,8 +362,7 @@ async def handle_menu_action(bot: Bot, user_id: int, chat_id: int, lang: str, ac
                 text = pref_note + "\n\n" + text
 
         if state not in (State.DEPOSITED, State.REPEAT):
-            label  = BRAND.cta.label(lang)
-            inline = InlineKeyboardMarkup([[InlineKeyboardButton(label, url=COINPLAY_REG_URL)]])
+            inline = _cta_keyboard(lang)
             sent = await send_pic(bot, chat_id, "picks", text, lang, reply_markup=inline)
             if not sent:
                 await _send_with_reg(bot, chat_id, text, lang)
@@ -332,8 +392,9 @@ def _personalization_note(prefs: dict, lang: str) -> str:
 
 async def _send_bridge(bot, user_id, chat_id, lang, intro_text: str = None):
     update_user(user_id, state=State.BRIDGE, bridge_shown=True)
-    label  = BRAND.cta.label(lang)
-    inline = InlineKeyboardMarkup([[InlineKeyboardButton(label, url=COINPLAY_REG_URL)]])
+    inline = _cta_keyboard(lang)
+    if BRAND.cta.mode is CTAMode.CHANNEL:
+        analytics.track("cta_view")
 
     if intro_text:
         # Show done message first (text only, no image)
@@ -350,8 +411,9 @@ async def _send_bridge(bot, user_id, chat_id, lang, intro_text: str = None):
 async def _send_cta(bot, user_id, chat_id, lang):
     update_user(user_id, state=State.CONVERTING, reg_link_sent=True)
     text   = CTA_REGISTER.get(lang, CTA_REGISTER["en"]).format(url=COINPLAY_REG_URL)
-    label  = BRAND.cta.label(lang)
-    inline = InlineKeyboardMarkup([[InlineKeyboardButton(label, url=COINPLAY_REG_URL)]])
+    inline = _cta_keyboard(lang)
+    if BRAND.cta.mode is CTAMode.CHANNEL:
+        analytics.track("cta_view")
     append_history(user_id, "assistant", text)
     await send_pic(bot, chat_id, "cta", text, lang, reply_markup=inline)
 

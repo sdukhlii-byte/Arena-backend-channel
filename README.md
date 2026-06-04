@@ -8,7 +8,11 @@
 - **Telegram-бот** (`bot.py`, `conversation.py`, `ai_agent.py`, `onboarding.py`,
   `ftd_onboarding.py`, `signals.py`) — воронка + ИИ-персонаж-аналитик.
 - **HTTP API** (`api.py`) — отдаёт мини-аппке данные:
-  `/api/health`, `/api/live`, `/api/upcoming`, `/api/picks?lang=en`, `/api/stats`.
+  `/api/health`, `/api/live`, `/api/upcoming`, `/api/picks?lang=en[&uid=]`, `/api/stats`,
+  `/api/membership?uid=` (проверка подписки), `POST /api/event` (аналитика),
+  `/api/funnel` (счётчики воронки).
+- **Подписка на канал** (`membership.py`, `analytics.py`) — гейтинг контента за
+  подпиской (getChatMember), нативная верификация в боте, событийная аналитика для CRO.
 - **Данные** (`livescore.py`) — киберспорт (PandaScore/ESportApi) + футбол (API-Football).
 
 ## Конфиг-слой (single source of truth)

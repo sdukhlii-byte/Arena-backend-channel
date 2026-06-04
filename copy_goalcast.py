@@ -155,3 +155,41 @@ MORNING_DIGEST_FOOTER = {
     "en": "\n\n⚽ Full reads drop in the channel.",
     "es": "\n\n⚽ Las lecturas completas salen en el canal.",
 }
+
+# ── Подписка через бота: нативное сообщение + верификация (рычаг №2) ───────────
+# Конверсия через бота выше, чем через кнопку в вебвью: один поток внутри Telegram,
+# без контекст-свитча наружу. Тап в мини-аппе → бот шлёт это сообщение с кнопками.
+JOIN_PROMPT = {
+    "en": (
+        "📣 *Join the GoalCast channel — free*\n\n"
+        "Full match breakdowns, early reads before kickoff, and results — "
+        "all in the channel.\n\n"
+        "Tap *Join* below, then hit *✅ I subscribed* and I'll unlock today's full reads. ⚽"
+    ),
+    "es": (
+        "📣 *Unite al canal de GoalCast — gratis*\n\n"
+        "Análisis completos, lecturas tempranas antes del pitazo y resultados — "
+        "todo en el canal.\n\n"
+        "Tocá *Unirme* abajo, luego *✅ Ya me suscribí* y te desbloqueo las lecturas de hoy. ⚽"
+    ),
+}
+
+JOIN_CHECK_BTN = {"en": "✅ I subscribed", "es": "✅ Ya me suscribí"}
+
+JOIN_OK = {
+    "en": (
+        "🔓 *Unlocked — you're in*\n\n"
+        "Full reads and early picks are yours now. "
+        "Keep notifications on so you don't miss the early calls. ⚽"
+    ),
+    "es": (
+        "🔓 *Desbloqueado — estás adentro*\n\n"
+        "Las lecturas completas y los picks tempranos ya son tuyos. "
+        "Dejá las notificaciones activas para no perderte las primeras. ⚽"
+    ),
+}
+
+JOIN_NOT_YET = {
+    "en": "Hmm — I don't see you in the channel yet. Tap *Join* above, then hit *✅ I subscribed* again. ⚽",
+    "es": "Mmm — todavía no te veo en el canal. Tocá *Unirme* arriba y luego *✅ Ya me suscribí* otra vez. ⚽",
+}

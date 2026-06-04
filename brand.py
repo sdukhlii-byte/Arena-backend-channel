@@ -56,6 +56,8 @@ class Character:
     role: str                      # короткая роль для системного промпта
     persona: str                   # абзац характера (вставляется в system prompt)
     win_rate_display: float = 0.78  # отображаемая историческая точность (0..1)
+    honest_stats: bool = False     # True → НЕ показывать дутый win_rate, только реальные
+                                   # накопленные цифры (доверие = валюта конверсии в канал)
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,11 @@ class CTA:
     # — режим CHANNEL —
     channel_url: str = ""          # "https://t.me/your_channel"
     channel_handle: str = ""       # "@your_channel" (для подписей)
+    channel_id: str = ""           # для getChatMember: "@handle" или числовой "-100…".
+                                   # Пусто → выводим из channel_handle / channel_url.
+    gate: bool = False             # гейтить «полные разборы» / лучшие пики за подпиской.
+                                   # Включает проверку членства в канале (см. membership.py)
+                                   # и тизер-режим в /api/picks для неподписчиков.
 
     # — подписи кнопки по языкам —
     button_label: dict[str, str] = field(default_factory=lambda: {
@@ -111,6 +118,24 @@ class CTA:
     def primary_url(self) -> str:
         """Куда реально ведёт основная кнопка при текущем режиме."""
         return self.channel_url if self.mode is CTAMode.CHANNEL else self.registration_url
+
+    def channel_chat_ref(self) -> str:
+        """
+        Идентификатор канала для Telegram getChatMember.
+        Приоритет: явный channel_id → channel_handle → вывод @handle из channel_url.
+        Возвращает '' если канал не настроен (тогда гейтинг просто отключается).
+        """
+        if self.channel_id:
+            return self.channel_id
+        if self.channel_handle:
+            h = self.channel_handle.strip()
+            return h if h.startswith("@") else "@" + h
+        if self.channel_url:
+            tail = self.channel_url.rstrip("/").split("/")[-1].strip()
+            # пропускаем приглашения вида t.me/+abc — по ним getChatMember не работает
+            if tail and not tail.startswith("+"):
+                return "@" + tail.lstrip("@")
+        return ""
 
     def label(self, lang: str) -> str:
         return self.button_label.get(lang, self.button_label.get("en", "Open"))
@@ -199,21 +224,36 @@ class Brand:
         Позволяет переопределить ссылки/режим из окружения на конкретном деплое
         без правки кода (удобно для A/B и быстрых смен оффера):
             CTA_MODE=channel CHANNEL_URL=https://t.me/foo
+            CHANNEL_ID=@foo  CTA_GATE=true  HONEST_STATS=true
             COINPLAY_URL=... COINPLAY_REG_URL=...
         """
         cta = self.cta
         env_mode = os.environ.get("CTA_MODE")
         if env_mode in (CTAMode.PRODUCT.value, CTAMode.CHANNEL.value):
             cta = replace(cta, mode=CTAMode(env_mode))
+
+        def _envbool(name: str, default: bool) -> bool:
+            raw = os.environ.get(name)
+            if raw is None:
+                return default
+            return raw.strip().lower() in ("1", "true", "yes", "on")
+
         cta = replace(
             cta,
             click_url=os.environ.get("COINPLAY_URL", cta.click_url),
             registration_url=os.environ.get("COINPLAY_REG_URL", cta.registration_url),
             channel_url=os.environ.get("CHANNEL_URL", cta.channel_url),
+            channel_id=os.environ.get("CHANNEL_ID", cta.channel_id),
+            gate=_envbool("CTA_GATE", cta.gate),
+        )
+        character = replace(
+            self.character,
+            honest_stats=_envbool("HONEST_STATS", self.character.honest_stats),
         )
         return replace(
             self,
             cta=cta,
+            character=character,
             bot_username=os.environ.get("BOT_USERNAME", self.bot_username),
             privacy_url=os.environ.get("PRIVACY_URL", self.privacy_url),
         )
@@ -281,6 +321,7 @@ GOALCAST = Brand(
             "and invite people to follow the channel for the full reads."
         ),
         win_rate_display=0.74,
+        honest_stats=True,   # канал: показываем только реальные накопленные цифры
     ),
     sport=SportConfig(vertical=Vertical.FOOTBALL),
     offer=Offer(),  # в channel-режиме оффер не показывается, но поле остаётся валидным
@@ -288,6 +329,7 @@ GOALCAST = Brand(
         mode=CTAMode.CHANNEL,
         channel_url="https://t.me/goalcast_channel",
         channel_handle="@goalcast_channel",
+        gate=True,   # лучшие пики/полные разборы открываются только подписчикам
         button_label={"en": "📣 Join the channel", "es": "📣 Unite al canal"},
     ),
     funnel=Funnel(repeat_enabled=False),   # канал не дожимаем на депозит

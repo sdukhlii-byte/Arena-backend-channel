@@ -19,8 +19,8 @@ from typing import Optional
 
 import httpx
 
-from config import ANTHROPIC_KEY, AI_MODEL, MATEO_WIN_RATE, MAX_DAILY_PICKS, COINPLAY_REG_URL
-from brand import BRAND
+from config import ANTHROPIC_KEY, AI_MODEL, MATEO_WIN_RATE, MAX_DAILY_PICKS, COINPLAY_REG_URL, CTA_MODE, HONEST_STATS
+from brand import BRAND, CTAMode
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +189,9 @@ def _md_url(url: str) -> str:
     so affiliate URLs with _ in query strings must have them percent-encoded.
     """
     return url.replace("_", "%5F")
+
+
+def _safe_md(text: str) -> str:
     """Escape characters that break Telegram Markdown v1 parsing.
 
     Rules:
@@ -219,6 +222,13 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
     if real_stats["total"] >= 5:
         pct = int(real_stats["correct"] / real_stats["total"] * 100)
         accuracy_label = f"{pct}% ({real_stats['correct']}/{real_stats['total']} picks)"
+    elif HONEST_STATS:
+        # Доверие = валюта конверсии: не показываем дутый win_rate, пока нет реальных данных.
+        accuracy_label = (
+            f"accumulating ({real_stats['correct']}/{real_stats['total']})"
+            if lang == "en" else
+            f"acumulando ({real_stats['correct']}/{real_stats['total']})"
+        )
     else:
         pct = int(win_rate * 100)
         accuracy_label = f"{pct}% (accumulating...)" if lang == "en" else f"{pct}% (acumulando...)"
@@ -257,43 +267,84 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
             )
         lines.append(line)
 
-    # ⚠️  URL contains underscores (d_5617175m_59419c_) — must percent-encode them
-    # Telegram MarkdownV1 parses _ inside [text](url) as italic markers
-    safe_url = _md_url(COINPLAY_REG_URL)
-    if lang == "es":
-        lines.append(f"\n\n[¿Querés monetizar esto? Así lo hago yo →]({safe_url})")
+    # Футер зависит от режима воронки:
+    #   product → ведём в Coinplay (underscores в URL percent-энкодим для Markdown);
+    #   channel → зовём в канал за полными разборами (без affiliate-ссылки).
+    if CTA_MODE is CTAMode.CHANNEL:
+        if lang == "es":
+            lines.append("\n\n_⚽ Las lecturas completas y los picks de mayor confianza salen en el canal._")
+        else:
+            lines.append("\n\n_⚽ Full reads and highest-confidence picks drop in the channel._")
     else:
-        lines.append(f"\n\n[Want to make this profitable? That's what Coinplay is for →]({safe_url})")
+        # ⚠️  URL contains underscores (d_5617175m_59419c_) — must percent-encode them
+        # Telegram MarkdownV1 parses _ inside [text](url) as italic markers
+        safe_url = _md_url(COINPLAY_REG_URL)
+        if lang == "es":
+            lines.append(f"\n\n[¿Querés monetizar esto? Así lo hago yo →]({safe_url})")
+        else:
+            lines.append(f"\n\n[Want to make this profitable? That's what Coinplay is for →]({safe_url})")
 
     return "\n".join(lines)
+
+
+def _teaser(reasoning: str, words: int = 6) -> str:
+    """Первые несколько слов разбора — «крючок» без полной ценности."""
+    parts = (reasoning or "").split()
+    if len(parts) <= words:
+        return reasoning or ""
+    return " ".join(parts[:words]).rstrip(".,;:") + "…"
+
+
+def apply_gate(picks: list[dict], member: bool, free_count: int = 1) -> list[dict]:
+    """
+    Гейтинг пиков для мини-аппа (рычаг №3: тизер + блёр-замок на reasoning).
+
+    Реципрокность: первые `free_count` пиков отдаём целиком (ценность вперёд),
+    остальные — только тизер reasoning + флаг locked, который фронт рисует
+    как заблокированный блок «full read in channel».
+
+    member=True или gate выключен → всё открыто (locked=False у всех).
+    Не мутирует исходный список (важно: picks приходят из общего кэша).
+    """
+    out: list[dict] = []
+    for i, p in enumerate(picks):
+        q = dict(p)
+        if member or i < free_count:
+            q["locked"] = False
+        else:
+            q["reasoning"] = _teaser(p.get("reasoning", ""))
+            q["locked"] = True
+        out.append(q)
+    return out
 
 
 def get_stats_display(lang: str) -> str:
     stats   = _preds.get("stats", {"correct": 0, "total": 0})
     correct = stats["correct"]
     total   = stats["total"]
+    name    = BRAND.character.name
 
     if total == 0:
         if lang == "es":
             return (
-                "📊 *Estadísticas de Mateo*\n\n"
+                f"📊 *Estadísticas de {name}*\n\n"
                 "_Las estadísticas se acumulan a medida que se resuelven los picks. ¡Volvé mañana!_"
             )
         return (
-            "📊 *Mateo's Track Record*\n\n"
+            f"📊 *{name}'s Track Record*\n\n"
             "_Stats accumulate as picks resolve. Check back tomorrow!_"
         )
 
     pct = int(correct / total * 100)
     if lang == "es":
         return (
-            f"📊 *Estadísticas de Mateo*\n\n"
+            f"📊 *Estadísticas de {name}*\n\n"
             f"✅ Picks correctos: *{correct}/{total}*\n"
             f"🎯 Precisión: *{pct}%*\n\n"
             f"_Actualizado diariamente._"
         )
     return (
-        f"📊 *Mateo's Track Record*\n\n"
+        f"📊 *{name}'s Track Record*\n\n"
         f"✅ Correct picks: *{correct}/{total}*\n"
         f"🎯 Accuracy: *{pct}%*\n\n"
         f"_Updated daily._"

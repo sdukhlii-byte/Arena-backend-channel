@@ -5,15 +5,19 @@ Commands: /start /live /today /picks /stats /signal /record /apitest
 import asyncio, logging, os, sys, atexit, time
 from telegram import Update
 from telegram.error import Conflict, NetworkError
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from telegram.constants import ParseMode
 from config import BOT_TOKEN, BOT_USERNAME, HOOK_IMAGE, State, TG_LANG_MAP, DEFAULT_LANG
 from storage import get_user, update_user, append_history
-from conversation import handle_message, handle_menu_action, main_menu
+from conversation import (
+    handle_message, handle_menu_action, main_menu,
+    send_channel_join, handle_join_check, JOIN_CHECK_CB,
+)
 from signals import run_signal_scheduler
 from ftd_onboarding import resume_pending_repeats
 from messages import HOOK_CAPTION
 from media import send_pic, pics_available
+import analytics
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -52,6 +56,16 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang    = _detect_lang(user.language_code)
     u_check = get_user(user.id, lang)
+
+    # Deep link `/start join` → нативный канальный CTA с верификацией подписки.
+    # Мини-апп проксирует тап «подписаться» сюда (t.me/<bot>?start=join), чтобы
+    # вся конверсия шла внутри Telegram одним потоком, без выхода в вебвью.
+    if context.args and context.args[0].lower() == "join":
+        update_user(user.id, lang=lang)
+        await send_channel_join(context.bot, chat_id, lang)
+        logger.info(f"/start join user={user.id} lang={lang}")
+        return
+
     is_new = u_check.get("message_count", 0) == 0
     if is_new:
         update_user(user.id, lang=lang, state=State.NEW,
@@ -262,6 +276,59 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 
+# ── /join — нативное приглашение в канал (рычаг №2) ───────────────────────────
+
+async def cmd_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    u    = get_user(user.id)
+    lang = u.get("lang", _detect_lang(user.language_code))
+    await send_channel_join(context.bot, update.effective_chat.id, lang)
+
+
+# ── Inline-кнопки (верификация подписки «✅ Я подписался») ─────────────────────
+
+async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not query:
+        return
+    user = update.effective_user
+    u    = get_user(user.id)
+    lang = u.get("lang", _detect_lang(user.language_code))
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    if (query.data or "") == JOIN_CHECK_CB:
+        try:
+            await handle_join_check(context.bot, user.id, update.effective_chat.id, lang)
+        except Exception as e:
+            logger.error(f"join_check crashed user={user.id}: {e}", exc_info=True)
+
+
+# ── Admin: /funnel — счётчики воронки + конверсии ─────────────────────────────
+
+async def cmd_funnel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in _admin_ids():
+        return
+    snap = analytics.snapshot()
+    f, r = snap["funnel"], snap["rates"]
+    lines = ["📊 *Funnel*", ""]
+    for k in ("cta_view", "cta_tap", "channel_open", "membership_check", "join_confirmed"):
+        lines.append(f"{k}: {f.get(k, 0)}")
+    lines.append("")
+    lines.append(f"unique joins: {snap['unique_joins']}")
+    def _r(v): return f"{v}%" if v is not None else "—"
+    lines.append(f"tap/view: {_r(r['tap_per_view'])}")
+    lines.append(f"join/tap: {_r(r['join_per_tap'])}")
+    lines.append(f"join/view: {_r(r['join_per_view'])}")
+    if snap["extra"]:
+        lines.append("")
+        lines.append("extra:")
+        for k, v in snap["extra"].items():
+            lines.append(f"  {k}: {v}")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 # ── Post-init ─────────────────────────────────────────────────────────────────
 
 async def post_init(application: Application):
@@ -293,6 +360,9 @@ def main():
     app.add_handler(CommandHandler("policy",  cmd_policy))
     app.add_handler(CommandHandler("record",  cmd_record))
     app.add_handler(CommandHandler("apitest", cmd_apitest))
+    app.add_handler(CommandHandler("join",    cmd_join))
+    app.add_handler(CommandHandler("funnel",  cmd_funnel))
+    app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     logger.info(f"Starting {BOT_USERNAME}...")
 
