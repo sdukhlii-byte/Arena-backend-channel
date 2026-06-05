@@ -10,6 +10,9 @@ Endpoints:
                                            Делает фронт зеркалом бэка: один источник правды.
   GET  /api/live
   GET  /api/upcoming
+  GET  /api/news?category=all|crypto|casino|esports[&limit=40]
+                                           — авто-лента: бесплатные RSS/JSON (крипто/казино/киберспорт)
+                                           + крипто-рынок (CoinGecko, Fear&Greed). Без гейтинга.
   GET  /api/picks?lang=en[&uid=123]     — uid → гейтинг пиков для неподписчиков
   GET  /api/stats
   GET  /api/membership?uid=123          — рычаг №1: проверка подписки на канал
@@ -24,6 +27,7 @@ from urllib.parse import urlparse, parse_qs
 
 from predictions import generate_daily_predictions, apply_gate, _preds
 from livescore import fetch_match_context, get_live_esports, get_live_football, get_upcoming_esports, get_today_football
+from news import get_news, VALID_CATEGORIES
 from config import HONEST_STATS, CTA_GATE, CHANNEL_HANDLE, CHANNEL_URL
 from brand import BRAND, CTAMode
 import membership
@@ -152,6 +156,16 @@ async def handle_upcoming() -> tuple[int, bytes]:
         get_today_football(),
     )
     return 200, _json_bytes({"matches": up_e + today_f})
+
+
+async def handle_news(category: str, limit: int) -> tuple[int, bytes]:
+    """Live content feed (crypto / casino / esports) for the Mini App 'Feed' surface.
+
+    Free public feeds only, aggregated + cached in news.py. Never gated — this is
+    top-of-funnel content that keeps the app worth opening between match days.
+    """
+    data = await get_news(category=category, limit=limit)
+    return 200, _json_bytes(data)
 
 
 async def handle_picks(lang: str, uid: int | None) -> tuple[int, bytes]:
@@ -299,6 +313,16 @@ async def handle_request(reader: asyncio.StreamReader, writer: asyncio.StreamWri
                 status, body = await handle_live()
             elif path == "/api/upcoming":
                 status, body = await handle_upcoming()
+            elif path == "/api/news":
+                cat = (qs.get("category", ["all"])[0] or "all").lower()
+                if cat not in VALID_CATEGORIES:
+                    cat = "all"
+                try:
+                    lim = int(qs.get("limit", ["40"])[0])
+                except (ValueError, TypeError):
+                    lim = 40
+                lim = max(1, min(lim, 60))
+                status, body = await handle_news(cat, lim)
             elif path == "/api/picks":
                 lang = (qs.get("lang", ["en"])[0] or "en").lower()
                 if lang not in ("en", "ru", "es"):
