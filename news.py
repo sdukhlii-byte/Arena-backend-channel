@@ -40,6 +40,14 @@ HTTP_TIMEOUT = 12.0
 MAX_PER_FEED = 12  # cap per source so one chatty feed can't dominate
 
 # category -> list of (source_label, url)
+# Niche feeds give nice images/sources when they load; Google News RSS is a
+# reliability backstop — its servers almost never block server-side fetches,
+# so the feed is never empty even when a CDN-protected outlet 403s us.
+def _gnews(query: str) -> str:
+    from urllib.parse import quote
+    return f"https://news.google.com/rss/search?q={quote(query)}&hl=en-US&gl=US&ceid=US:en"
+
+
 RSS_FEEDS: dict[str, list[tuple[str, str]]] = {
     "crypto": [
         ("CoinDesk",      "https://www.coindesk.com/arc/outboundfeeds/rss/"),
@@ -49,6 +57,13 @@ RSS_FEEDS: dict[str, list[tuple[str, str]]] = {
     "casino": [
         ("GamblingNews",  "https://www.gamblingnews.com/feed/"),
         ("Casino.org",    "https://www.casino.org/news/feed/"),
+    ],
+    # Esports needs a real news source: VLR (below) only gives match scores and
+    # was the thing crashing All/Esports. Google News RSS is the reliable feed;
+    # HLTV is a bonus that may or may not pass a datacenter Cloudflare check.
+    "esports": [
+        ("HLTV",        "https://www.hltv.org/rss/news"),
+        ("Google News", _gnews("esports OR CS2 OR Valorant OR Dota2 when:3d")),
     ],
 }
 
@@ -60,7 +75,13 @@ CG_MARKETS_URL  = (
 )
 FNG_URL         = "https://api.alternative.me/fng/?limit=1"
 
-_UA = "MetaPlayArena/1.0 (+https://t.me)"
+# A real browser UA — many news CDNs (Cloudflare) reject non-browser agents,
+# which is why API services (CoinGecko, Fear&Greed) work but RSS came back empty.
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+_RSS_ACCEPT = "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5"
 
 # ── Cache ───────────────────────────────────────────────────────────────────--
 _cache: dict[str, dict] = {}
@@ -192,7 +213,7 @@ def _parse_rss(xml_text: str, source: str, category: str) -> list[dict]:
 
 async def _fetch_text(client: httpx.AsyncClient, url: str) -> str | None:
     try:
-        r = await client.get(url, headers={"User-Agent": _UA, "Accept": "*/*"})
+        r = await client.get(url, headers={"User-Agent": _UA, "Accept": _RSS_ACCEPT})
         r.raise_for_status()
         return r.text
     except Exception as e:  # noqa: BLE001 — feeds fail soft
@@ -221,32 +242,46 @@ async def _fetch_rss_category(client, category: str) -> list[dict]:
 
 
 async def _fetch_esports(client) -> list[dict]:
-    data = await _fetch_json(client, VLR_RESULTS_URL)
+    """VLR.gg match results → news items. Bulletproof: any failure → []."""
     out: list[dict] = []
-    if not data:
-        return out
-    results = (data.get("data", {}) or {}).get("segments") or data.get("data") or []
-    if isinstance(results, dict):
-        results = results.get("segments", [])
-    for r in (results or [])[:MAX_PER_FEED]:
-        try:
-            t1, t2 = r.get("team1", "?"), r.get("team2", "?")
-            s1, s2 = r.get("score1", ""), r.get("score2", "")
-            event  = r.get("tournament") or r.get("event") or "Valorant"
-            title  = f"{t1} {s1}–{s2} {t2}"
-            link   = "https://www.vlr.gg" + (r.get("match_page", "") or "")
-            out.append({
-                "id":           _stable_id(link + title),
-                "title":        title,
-                "url":          link,
-                "source":       "VLR.gg",
-                "category":     "esports",
-                "published_at": datetime.now(timezone.utc).isoformat(),
-                "image":        None,
-                "summary":      f"{event} · {r.get('round_info', 'Result')}",
-            })
-        except Exception:  # noqa: BLE001
-            continue
+    try:
+        data = await _fetch_json(client, VLR_RESULTS_URL)
+        if not data:
+            return out
+        # The API has shipped two shapes over time:
+        #   {"data": {"segments": [...]}}   and   {"data": [...]}
+        d = data.get("data") if isinstance(data, dict) else data
+        if isinstance(d, dict):
+            results = d.get("segments") or d.get("results") or []
+        elif isinstance(d, list):
+            results = d
+        else:
+            results = []
+        for r in (results or [])[:MAX_PER_FEED]:
+            if not isinstance(r, dict):
+                continue
+            try:
+                t1, t2 = r.get("team1", "?"), r.get("team2", "?")
+                s1, s2 = r.get("score1", ""), r.get("score2", "")
+                event  = (r.get("tournament_name") or r.get("tournament")
+                          or r.get("event") or "Esports")
+                title  = f"{t1} {s1}–{s2} {t2}".strip()
+                mp     = r.get("match_page", "") or ""
+                link   = mp if mp.startswith("http") else ("https://www.vlr.gg" + mp)
+                out.append({
+                    "id":           _stable_id(link + title),
+                    "title":        title,
+                    "url":          link,
+                    "source":       "VLR.gg",
+                    "category":     "esports",
+                    "published_at": datetime.now(timezone.utc).isoformat(),
+                    "image":        None,
+                    "summary":      f"{event} · {r.get('round_info', 'Result')}",
+                })
+            except Exception:  # noqa: BLE001 — skip a bad row, keep the rest
+                continue
+    except Exception as e:  # noqa: BLE001 — VLR must never break the feed
+        logger.warning("esports fetch failed: %s", type(e).__name__)
     return out
 
 
@@ -295,6 +330,26 @@ async def _fetch_market(client) -> dict:
 
 VALID_CATEGORIES = ("all", "crypto", "casino", "esports")
 
+_EMPTY_MARKET = {"coins": [], "fng": None, "mcap_change_24h": None, "btc_dominance": None}
+
+
+def _ok(res) -> list:
+    """Coerce a gather result (list | Exception | None) into a safe list."""
+    if isinstance(res, list):
+        return res
+    if isinstance(res, BaseException):
+        logger.warning("source failed: %s", type(res).__name__)
+    return []
+
+
+def _ok_dict(res) -> dict:
+    """Coerce a gather result into a safe market dict."""
+    if isinstance(res, dict):
+        return res
+    if isinstance(res, BaseException):
+        logger.warning("market failed: %s", type(res).__name__)
+    return dict(_EMPTY_MARKET)
+
 
 async def get_news(category: str = "all", limit: int = 40) -> dict:
     """Return {items, market, updated_at}. Cached; fails soft on dead feeds."""
@@ -307,25 +362,36 @@ async def get_news(category: str = "all", limit: int = 40) -> dict:
         return cached
 
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
+        # return_exceptions=True is the key safety net: one failing source can
+        # NEVER blow up the whole response (that's what was emptying All/Esports).
         if category == "all":
-            crypto, casino, esports, market = await asyncio.gather(
+            crypto, casino, es_rss, es_vlr, market = await asyncio.gather(
                 _fetch_rss_category(client, "crypto"),
                 _fetch_rss_category(client, "casino"),
+                _fetch_rss_category(client, "esports"),
                 _fetch_esports(client),
                 _fetch_market(client),
+                return_exceptions=True,
             )
-            items = crypto + casino + esports
+            items = _ok(crypto) + _ok(casino) + _ok(es_rss) + _ok(es_vlr)
+            market = _ok_dict(market)
         elif category == "esports":
-            esports, market = await asyncio.gather(
+            es_rss, es_vlr, market = await asyncio.gather(
+                _fetch_rss_category(client, "esports"),
                 _fetch_esports(client),
                 _fetch_market(client),
+                return_exceptions=True,
             )
-            items = esports
+            items = _ok(es_rss) + _ok(es_vlr)
+            market = _ok_dict(market)
         else:
-            items, market = await asyncio.gather(
+            rss, market = await asyncio.gather(
                 _fetch_rss_category(client, category),
                 _fetch_market(client),
+                return_exceptions=True,
             )
+            items = _ok(rss)
+            market = _ok_dict(market)
 
     # newest first, dedupe by url, cap
     seen: set[str] = set()
