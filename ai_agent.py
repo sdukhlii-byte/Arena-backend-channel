@@ -7,7 +7,7 @@ Anti-hallucination: only real match data passed, never mock.
 """
 import logging, re
 import httpx
-from config import ANTHROPIC_KEY, AI_MODEL, AI_MAX_TOKENS, OFFER, COINPLAY_REG_URL
+from config import ANTHROPIC_KEY, AI_MODEL, AI_MAX_TOKENS, OFFER, COINPLAY_REG_URL, CHANNEL_HANDLE
 from brand import BRAND
 
 logger = logging.getLogger(__name__)
@@ -53,21 +53,46 @@ def _match_ctx(real_live: list, real_upcoming: list) -> str:
 
 
 def _assistant_system(lang: str, state: str, prefs: dict, real_live: list, real_upcoming: list) -> str:
-    lang_instr = (
-        "Respond in Spanish (Latin American, casual)."
-        if lang == "es" else
-        "Respond in English (casual, direct)."
-    )
-    offer = (
-        f"100% bonus up to {OFFER['bonus_max']} USDT + {OFFER['free_spins']} free spins, "
-        f"min {OFFER['min_deposit']} USDT, {OFFER['cashback_pct']}% cashback, 40+ cryptos"
-    )
+    from brand import BRAND, CTAMode
+    is_channel = BRAND.cta.mode is CTAMode.CHANNEL
+
+    lang_instr = {
+        "ru": "Отвечай по-русски, живым разговорным тоном, коротко.",
+        "es": "Respond in Spanish (Latin American, casual).",
+    }.get(lang, "Respond in English (casual, direct).")
     persona = BRAND.character.persona.format(
         name=BRAND.character.name,
         role=BRAND.character.role,
         brand=BRAND.display_name,
         partner=BRAND.cta.partner_name or BRAND.display_name,
     )
+
+    if is_channel:
+        goal_block = (
+            f"GOAL: подвести человека к ПОДПИСКЕ на канал {CHANNEL_HANDLE or BRAND.display_name}, "
+            f"где выходят полные разборы, ранние сигналы и итоги. Вход бесплатный.\n"
+            "СТРОГО: не рекламируй казино/букмекеров, не предлагай делать ставки или "
+            "депозиты, не обещай выигрыши, не называй коэффициенты как призыв ставить."
+        )
+        role_lines = (
+            "- отвечай на вопросы про спорт/киберспорт и разбор матчей\n"
+            "- естественно зови в канал за полным разбором, без давления\n"
+            "- у пользователя есть кнопки меню (счёт/пики) — не дублируй их\n"
+            "- держись в пределах 160 слов"
+        )
+    else:
+        offer = (
+            f"100% bonus up to {OFFER['bonus_max']} USDT + {OFFER['free_spins']} free spins, "
+            f"min {OFFER['min_deposit']} USDT, {OFFER['cashback_pct']}% cashback, 40+ cryptos"
+        )
+        goal_block = f"COINPLAY: {offer} | {COINPLAY_REG_URL} | Curacao licensed, 2022"
+        role_lines = (
+            "- Answer questions about sports, betting strategy, crypto\n"
+            "- Mention Coinplay naturally when relevant, don't push hard\n"
+            "- User has menu buttons for live scores/picks — don't replicate those\n"
+            "- Keep responses under 160 words"
+        )
+
     return f"""{persona}
 {lang_instr}
 
@@ -77,7 +102,7 @@ USER PROFILE (personalize responses to this):
 REAL MATCH DATA (ONLY reference these — never invent):
 {_match_ctx(real_live, real_upcoming)}
 
-COINPLAY: {offer} | {COINPLAY_REG_URL} | Curacao licensed, 2022
+{goal_block}
 
 ANTI-HALLUCINATION:
 - NEVER invent match names, teams, scores, odds, or results
@@ -95,10 +120,7 @@ PERSONALIZATION RULES:
 CURRENT STATE: {state}
 
 ROLE:
-- Answer questions about sports, betting strategy, crypto
-- Mention Coinplay naturally when relevant, don't push hard
-- User has menu buttons for live scores/picks — don't replicate those
-- Keep responses under 160 words
+{role_lines}
 
 INTENT TAGS (prepend):
 [INTENT:esports_fan|football_fan|platform_curious|deposit_ready|ftd_confirmed|objection|just_browsing]

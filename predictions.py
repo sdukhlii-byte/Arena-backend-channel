@@ -222,25 +222,25 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
     if real_stats["total"] >= 5:
         pct = int(real_stats["correct"] / real_stats["total"] * 100)
         accuracy_label = f"{pct}% ({real_stats['correct']}/{real_stats['total']} picks)"
-    elif HONEST_STATS:
-        # Доверие = валюта конверсии: не показываем дутый win_rate, пока нет реальных данных.
-        accuracy_label = (
-            f"accumulating ({real_stats['correct']}/{real_stats['total']})"
-            if lang == "en" else
-            f"acumulando ({real_stats['correct']}/{real_stats['total']})"
-        )
+    elif CTA_MODE == CTAMode.CHANNEL or HONEST_STATS:
+        # Доверие = валюта конверсии: не показываем дутый win_rate без реальных данных.
+        accuracy_label = {
+            "ru": f"набираем статистику ({real_stats['correct']}/{real_stats['total']})",
+            "es": f"acumulando ({real_stats['correct']}/{real_stats['total']})",
+        }.get(lang, f"accumulating ({real_stats['correct']}/{real_stats['total']})")
     else:
         pct = int(win_rate * 100)
         accuracy_label = f"{pct}% (accumulating...)" if lang == "en" else f"{pct}% (acumulando...)"
 
-    conf_map_en = {"High": "🔥 High", "Medium": "⚡ Medium", "Low": "💡 Low"}
-    conf_map_es = {"High": "🔥 Alta", "Medium": "⚡ Media", "Low": "💡 Baja"}
-    conf_map    = conf_map_es if lang == "es" else conf_map_en
+    conf_map = {
+        "ru": {"High": "🔥 Высокая", "Medium": "⚡ Средняя", "Low": "💡 Низкая"},
+        "es": {"High": "🔥 Alta", "Medium": "⚡ Media", "Low": "💡 Baja"},
+    }.get(lang, {"High": "🔥 High", "Medium": "⚡ Medium", "Low": "💡 Low"})
 
-    if lang == "es":
-        header = f"🎯 *Picks de {BRAND.character.name} — hoy*\n_Precisión histórica: {accuracy_label}_\n"
-    else:
-        header = f"🎯 *{BRAND.character.name}'s Picks — today*\n_Historical accuracy: {accuracy_label}_\n"
+    header = {
+        "ru": f"🎯 *Разборы {BRAND.character.name} — на сегодня*\n_Точность: {accuracy_label}_\n",
+        "es": f"🎯 *Picks de {BRAND.character.name} — hoy*\n_Precisión: {accuracy_label}_\n",
+    }.get(lang, f"🎯 *{BRAND.character.name}'s Picks — today*\n_Accuracy: {accuracy_label}_\n")
 
     lines = [header]
     for p in picks:
@@ -251,7 +251,14 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
         pick_team = _safe_md(p.get("pick", ""))
         game      = p.get("game", "")
 
-        if lang == "es":
+        if lang == "ru":
+            line = (
+                f"\n*{game} — {match}*\n"
+                f"📌 Пик: *{pick_team}*\n"
+                f"💬 _{reasoning}_\n"
+                f"Уверенность: {conf}"
+            )
+        elif lang == "es":
             line = (
                 f"\n*{game} — {match}*\n"
                 f"📌 Pick: *{pick_team}*\n"
@@ -271,10 +278,10 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
     #   product → ведём в Coinplay (underscores в URL percent-энкодим для Markdown);
     #   channel → зовём в канал за полными разборами (без affiliate-ссылки).
     if CTA_MODE is CTAMode.CHANNEL:
-        if lang == "es":
-            lines.append("\n\n_⚽ Las lecturas completas y los picks de mayor confianza salen en el canal._")
-        else:
-            lines.append("\n\n_⚽ Full reads and highest-confidence picks drop in the channel._")
+        lines.append({
+            "ru": "\n\n_⚽ Полные разборы и пики с высшей уверенностью выходят в канале._",
+            "es": "\n\n_⚽ Las lecturas completas y los picks de mayor confianza salen en el canal._",
+        }.get(lang, "\n\n_⚽ Full reads and highest-confidence picks drop in the channel._"))
     else:
         # ⚠️  URL contains underscores (d_5617175m_59419c_) — must percent-encode them
         # Telegram MarkdownV1 parses _ inside [text](url) as italic markers

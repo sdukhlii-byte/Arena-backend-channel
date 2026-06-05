@@ -326,11 +326,17 @@ async def handle_menu_action(bot: Bot, user_id: int, chat_id: int, lang: str, ac
         is_mock = not ctx.get("has_real_live", ctx["has_real"])
         text    = format_livescore_message(display["live"], lang, is_mock=is_mock)
         if state not in (State.DEPOSITED, State.REPEAT) and not is_mock:
-            text += (
-                "\n\n💡 _¿Querés actuar? Para eso uso Coinplay._"
-                if lang == "es" else
-                "\n\n💡 _Want to act on these? That's what Coinplay is for._"
-            )
+            if BRAND.cta.mode is CTAMode.CHANNEL:
+                text += {
+                    "ru": "\n\n💡 _Полные разборы этих матчей — в канале._",
+                    "es": "\n\n💡 _Los análisis completos de estos partidos — en el canal._",
+                }.get(lang, "\n\n💡 _Full breakdowns of these matches — in the channel._")
+            else:
+                text += (
+                    "\n\n💡 _¿Querés actuar? Para eso uso Coinplay._"
+                    if lang == "es" else
+                    "\n\n💡 _Want to act on these? That's what Coinplay is for._"
+                )
         await _send(bot, chat_id, text, lang)
 
     elif action == "today":

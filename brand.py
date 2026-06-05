@@ -32,6 +32,16 @@ from enum import Enum
 #  Перечисления
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _handle_from_url(url: str) -> str:
+    """t.me/<name> → '@<name>'. Приватные ссылки (t.me/+invite, /joinchat) → ''."""
+    if not url:
+        return ""
+    tail = url.rstrip("/").split("/")[-1].strip()
+    if not tail or tail.startswith("+") or tail.lower() == "joinchat":
+        return ""
+    return "@" + tail.lstrip("@")
+
+
 class CTAMode(str, Enum):
     """Куда ведёт финальная кнопка воронки."""
     PRODUCT = "product"   # партнёрская ссылка (казино/букмекер) — как сейчас
@@ -179,14 +189,18 @@ class Funnel:
 
 @dataclass(frozen=True)
 class I18n:
-    """Языки и сопоставление гео/языков Telegram."""
-    supported: tuple[str, ...] = ("en", "es")
-    default: str = "en"
+    """Языки и сопоставление гео/языков Telegram. English = приоритетный дефолт."""
+    supported: tuple[str, ...] = ("en", "ru", "es")
+    default: str = "en"   # приоритет: неизвестный язык профиля → английский
     geo_lang: dict[str, str] = field(default_factory=lambda: {
         "VN": "en", "IN": "en", "PE": "es", "CO": "es", "AR": "es",
+        "RU": "ru", "BY": "ru", "KZ": "ru", "UA": "ru",
     })
     tg_lang_map: dict[str, str] = field(default_factory=lambda: {
-        "en": "en", "vi": "en", "hi": "en", "es": "es",
+        # язык профиля Telegram → язык контента (всё прочее → default=en)
+        "en": "en", "vi": "en", "hi": "en",
+        "es": "es",
+        "ru": "ru", "uk": "ru", "be": "ru", "kk": "ru",
     })
 
 
@@ -238,12 +252,31 @@ class Brand:
                 return default
             return raw.strip().lower() in ("1", "true", "yes", "on")
 
+        # ── Резолв канала ────────────────────────────────────────────────────
+        # Задать канал можно ОДНОЙ переменной CHANNEL_URL (публичный t.me/<name>):
+        # из неё выводится @handle для отображения и проверки подписки.
+        # Для приватного канала (t.me/+invite) задай ещё CHANNEL_ID=-100… .
+        env_url    = os.environ.get("CHANNEL_URL")
+        env_handle = os.environ.get("CHANNEL_HANDLE")
+        env_id     = os.environ.get("CHANNEL_ID")
+
+        new_url = env_url if env_url is not None else cta.channel_url
+        if env_handle:
+            h = env_handle.strip()
+            new_handle = h if h.startswith("@") else "@" + h
+        elif env_url:
+            # handle явно не задан → выводим из заданного URL (если он публичный)
+            new_handle = _handle_from_url(env_url) or cta.channel_handle
+        else:
+            new_handle = cta.channel_handle
+
         cta = replace(
             cta,
             click_url=os.environ.get("COINPLAY_URL", cta.click_url),
             registration_url=os.environ.get("COINPLAY_REG_URL", cta.registration_url),
-            channel_url=os.environ.get("CHANNEL_URL", cta.channel_url),
-            channel_id=os.environ.get("CHANNEL_ID", cta.channel_id),
+            channel_url=new_url,
+            channel_handle=new_handle,
+            channel_id=env_id if env_id is not None else cta.channel_id,
             gate=_envbool("CTA_GATE", cta.gate),
         )
         character = replace(
@@ -265,7 +298,7 @@ class Brand:
 
 _COINPLAY_LINK = "https://promotioncoinplay.com/L?tag=d_5617175m_59419c_&site=5617175&ad=59419"
 
-#: Бренд №1 — текущий: киберспорт + футбол, ведём в продукт Coinplay.
+#: Бренд №1 — АКТИВНЫЙ: киберспорт + футбол, цель = ПОДПИСКА НА КАНАЛ.
 METAPLAY = Brand(
     id="metaplay",
     display_name="MetaPlay",
@@ -279,26 +312,35 @@ METAPLAY = Brand(
         role="esports and football analyst",
         persona=(
             "You are {name} — {role} for the {brand} Telegram channel. "
-            "Tone: insider, sharp, genuine — an analyst who shares his edge, "
-            "not a promoter. You monetize your analysis through {partner}."
+            "Tone: insider, sharp, genuine — an analyst who shares his reads, not a promoter. "
+            "You do NOT advertise casinos or bookmakers and never tell people to bet or deposit. "
+            "Your goal is to get people to subscribe to the {brand} channel, "
+            "where full breakdowns, early signals and results are posted."
         ),
-        win_rate_display=0.78,
+        honest_stats=True,   # канал: только реальные накопленные цифры, без дутых процентов
     ),
     sport=SportConfig(vertical=Vertical.BOTH),
-    offer=Offer(),
+    offer=Offer(),  # в channel-режиме оффер не показывается
     cta=CTA(
-        mode=CTAMode.PRODUCT,
-        click_url=_COINPLAY_LINK,
-        registration_url=_COINPLAY_LINK,
-        partner_name="Coinplay",
-        license_label="Curacao licensed",
-        license_url="https://cert.cga.cw/token?id=626",
-        since="2022",
-        button_label={"en": "🎯 Register on Coinplay", "es": "🎯 Registrarme en Coinplay"},
+        mode=CTAMode.CHANNEL,
+        # ┌──────────────────────────────────────────────────────────────────────┐
+        # │  ⚠️  ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ЗАДАЁТСЯ РЕАЛЬНЫЙ КАНАЛ (backend).         │
+        # │  Замени @your_channel на свой. Или задай env CHANNEL_URL / CHANNEL_ID. │
+        # │  Бот ДОЛЖЕН быть админом этого канала — иначе проверка подписки не    │
+        # │  работает (getChatMember).                                            │
+        # └──────────────────────────────────────────────────────────────────────┘
+        channel_url="https://t.me/your_channel",
+        channel_handle="@your_channel",
+        gate=True,   # полные разборы / лучшие пики открываются только подписчикам
+        button_label={
+            "en": "📣 Join the channel",
+            "ru": "📣 Подписаться на канал",
+            "es": "📣 Unirme al canal",
+        },
     ),
-    funnel=Funnel(),
+    funnel=Funnel(repeat_enabled=False),   # канал не дожимаем на депозит
     privacy_url="https://metaarena.s26636274.workers.dev/privacy",
-    copy_pack="copy_metaplay",
+    copy_pack="copy_metaplay_channel",
 )
 
 #: Бренд №2 — пример ремикса: только футбол, финал ведёт в Telegram-КАНАЛ.
