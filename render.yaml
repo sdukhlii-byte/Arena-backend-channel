@@ -15,10 +15,10 @@ services:
   - type: worker
     name: arena-bot
     runtime: python
-    pythonVersion: "3.12.9"
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
+      - { key: PYTHON_VERSION, value: "3.12.9" }
       - { key: BRAND_ID,      value: metaplay }
       - { key: CTA_MODE,      value: channel }   # цель = подписка на канал
       - { key: CTA_GATE,      value: "true" }
@@ -38,10 +38,10 @@ services:
   - type: web
     name: arena-api
     runtime: python
-    pythonVersion: "3.12.9"
     buildCommand: pip install -r requirements.txt
     startCommand: python api.py
     envVars:
+      - { key: PYTHON_VERSION, value: "3.12.9" }
       - { key: BRAND_ID,      value: metaplay }
       - { key: CTA_MODE,      value: channel }   # ДОЛЖНО совпадать с воркером
       - { key: CTA_GATE,      value: "true" }
