@@ -191,10 +191,16 @@ async def handle_membership(uid: int | None) -> tuple[int, bytes]:
     member = await membership.is_member(uid)
     if member:
         analytics.mark_join(uid)
+    enabled = bool(CTA_GATE and membership.channel_configured())
     return 200, _json_bytes({
         "uid":       uid,
         "member":    member,
-        "gate":      bool(CTA_GATE),
+        "gate": {
+            "enabled":   enabled,
+            "locked":    enabled and not member,
+            "is_member": member,
+            "channel":   CHANNEL_HANDLE or CHANNEL_URL,
+        },
         "channel":   CHANNEL_HANDLE or CHANNEL_URL,
         "configured": membership.channel_configured(),
     })

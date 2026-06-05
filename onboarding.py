@@ -25,62 +25,32 @@ ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 # ── Onboarding questions (shown to user) ──────────────────────────────────────
 
-QUESTIONS = {
-    "en": [
-        # Step 0 — shown in /start hook already ("Football or Esports?")
-        # Step 1
-        (
-            "⚽🎮 *Football or Esports — what's your main thing?*\n\n"
-            "Or both? Just say it in your own words."
-        ),
-        # Step 2
-        (
-            "Got it. *Which leagues or games specifically?*\n\n"
-            "La Liga, Libertadores, Premier League... "
-            "or CS2, LoL, Dota — whatever you actually follow."
-        ),
-        # Step 3
-        (
-            "Perfect. *Any favourite teams or clubs?*\n\n"
-            "And what's more useful for you — "
-            "picks with full reasoning, live score alerts, or both?"
-        ),
-    ],
-    "es": [
-        # Step 1
-        (
-            "⚽🎮 *¿Fútbol o Esports — cuál es tu fuerte?*\n\n"
-            "¿O los dos? Contame como quieras."
-        ),
-        # Step 2
-        (
-            "Perfecto. *¿Qué ligas o juegos específicamente?*\n\n"
-            "La Liga, Libertadores, Premier League... "
-            "o CS2, LoL, Dota — lo que realmente seguís."
-        ),
-        # Step 3
-        (
-            "Bueno. *¿Tenés equipos o clubes favoritos?*\n\n"
-            "¿Y qué te sirve más — "
-            "picks con razonamiento completo, alertas de resultados en vivo, o los dos?"
-        ),
-    ],
-}
+_Q_RU = [
+    # Step 1
+    (
+        "⚽🎮 *Футбол или киберспорт — что основное?*\n\n"
+        "Или и то и другое? Напиши своими словами."
+    ),
+    # Step 2
+    (
+        "Понял. *Какие лиги или дисциплины конкретно?*\n\n"
+        "Ла Лига, Либертадорес, АПЛ... или CS2, LoL, Dota — то, за чем реально следишь."
+    ),
+    # Step 3
+    (
+        "Отлично. *Любимые команды или клубы?*\n\n"
+        "И что полезнее — разборы с полной логикой, оповещения о счёте или и то и другое?"
+    ),
+]
+QUESTIONS = {"en": _Q_RU, "es": _Q_RU}
 
-DONE_MSG = {
-    "en": (
-        "🎯 *Sorted — profile's set up.*\n\n"
-        "I'll filter my daily picks and alerts to what you actually follow. "
-        "No noise, just the signals that matter.\n\n"
-        "Now — how I actually put this analysis to work 👇"
-    ),
-    "es": (
-        "🎯 *Listo — perfil configurado.*\n\n"
-        "Voy a filtrar mis picks diarios y alertas a lo que realmente seguís. "
-        "Sin ruido, solo las señales que importan.\n\n"
-        "Ahora — cómo realmente pongo este análisis en acción 👇"
-    ),
-}
+_DONE_RU = (
+    "🎯 *Готово — профиль настроен.*\n\n"
+    "Буду фильтровать ежедневные разборы и оповещения под то, за чем ты следишь. "
+    "Без шума — только нужные сигналы.\n\n"
+    "А теперь — где выходят полные разборы 👇"
+)
+DONE_MSG = {"en": _DONE_RU, "es": _DONE_RU}
 
 
 # ── AI preference extractor ───────────────────────────────────────────────────

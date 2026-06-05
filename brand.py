@@ -243,6 +243,7 @@ class Brand:
             click_url=os.environ.get("COINPLAY_URL", cta.click_url),
             registration_url=os.environ.get("COINPLAY_REG_URL", cta.registration_url),
             channel_url=os.environ.get("CHANNEL_URL", cta.channel_url),
+            channel_handle=os.environ.get("CHANNEL_HANDLE", cta.channel_handle),
             channel_id=os.environ.get("CHANNEL_ID", cta.channel_id),
             gate=_envbool("CTA_GATE", cta.gate),
         )
@@ -265,7 +266,7 @@ class Brand:
 
 _COINPLAY_LINK = "https://promotioncoinplay.com/L?tag=d_5617175m_59419c_&site=5617175&ad=59419"
 
-#: Бренд №1 — текущий: киберспорт + футбол, ведём в продукт Coinplay.
+#: Бренд №1 — АКТИВНЫЙ: киберспорт + футбол, цель = ПОДПИСКА НА КАНАЛ.
 METAPLAY = Brand(
     id="metaplay",
     display_name="MetaPlay",
@@ -276,29 +277,34 @@ METAPLAY = Brand(
     },
     character=Character(
         name="Mateo",
-        role="esports and football analyst",
+        role="киберспорт- и футбол-аналитик",
         persona=(
-            "You are {name} — {role} for the {brand} Telegram channel. "
-            "Tone: insider, sharp, genuine — an analyst who shares his edge, "
-            "not a promoter. You monetize your analysis through {partner}."
+            "Ты — {name}, {role} Telegram-канала {brand}. "
+            "Тон: свой, по делу, без хайпа — аналитик, который делится разбором, "
+            "а не продаёт. Ты НЕ рекламируешь казино/букмекеров и не зовёшь делать "
+            "ставки или депозиты. Твоя цель — чтобы человек подписался на канал {brand}, "
+            "где выходят полные разборы, ранние сигналы и итоги."
         ),
-        win_rate_display=0.78,
+        honest_stats=True,   # канал: только реальные накопленные цифры, без дутых процентов
     ),
     sport=SportConfig(vertical=Vertical.BOTH),
-    offer=Offer(),
+    offer=Offer(),  # в channel-режиме оффер не показывается
     cta=CTA(
-        mode=CTAMode.PRODUCT,
-        click_url=_COINPLAY_LINK,
-        registration_url=_COINPLAY_LINK,
-        partner_name="Coinplay",
-        license_label="Curacao licensed",
-        license_url="https://cert.cga.cw/token?id=626",
-        since="2022",
-        button_label={"en": "🎯 Register on Coinplay", "es": "🎯 Registrarme en Coinplay"},
+        mode=CTAMode.CHANNEL,
+        # ┌──────────────────────────────────────────────────────────────────────┐
+        # │  ⚠️  ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ЗАДАЁТСЯ РЕАЛЬНЫЙ КАНАЛ (backend).         │
+        # │  Замени @your_channel на свой. Или задай env CHANNEL_URL / CHANNEL_ID. │
+        # │  Бот ДОЛЖЕН быть админом этого канала — иначе проверка подписки не    │
+        # │  работает (getChatMember).                                            │
+        # └──────────────────────────────────────────────────────────────────────┘
+        channel_url="https://t.me/your_channel",
+        channel_handle="@your_channel",
+        gate=True,   # полные разборы / лучшие пики открываются только подписчикам
+        button_label={"en": "📣 Подписаться на канал", "es": "📣 Подписаться на канал"},
     ),
-    funnel=Funnel(),
+    funnel=Funnel(repeat_enabled=False),   # канал не дожимаем на депозит
     privacy_url="https://metaarena.s26636274.workers.dev/privacy",
-    copy_pack="copy_metaplay",
+    copy_pack="copy_metaplay_channel",
 )
 
 #: Бренд №2 — пример ремикса: только футбол, финал ведёт в Telegram-КАНАЛ.

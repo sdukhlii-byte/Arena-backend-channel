@@ -222,13 +222,9 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
     if real_stats["total"] >= 5:
         pct = int(real_stats["correct"] / real_stats["total"] * 100)
         accuracy_label = f"{pct}% ({real_stats['correct']}/{real_stats['total']} picks)"
-    elif HONEST_STATS:
+    elif CTA_MODE == CTAMode.CHANNEL or HONEST_STATS:
         # Доверие = валюта конверсии: не показываем дутый win_rate, пока нет реальных данных.
-        accuracy_label = (
-            f"accumulating ({real_stats['correct']}/{real_stats['total']})"
-            if lang == "en" else
-            f"acumulando ({real_stats['correct']}/{real_stats['total']})"
-        )
+        accuracy_label = f"набираем статистику ({real_stats['correct']}/{real_stats['total']})"
     else:
         pct = int(win_rate * 100)
         accuracy_label = f"{pct}% (accumulating...)" if lang == "en" else f"{pct}% (acumulando...)"
@@ -237,7 +233,10 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
     conf_map_es = {"High": "🔥 Alta", "Medium": "⚡ Media", "Low": "💡 Baja"}
     conf_map    = conf_map_es if lang == "es" else conf_map_en
 
-    if lang == "es":
+    if CTA_MODE == CTAMode.CHANNEL:
+        conf_map = {"High": "🔥 Высокая", "Medium": "⚡ Средняя", "Low": "💡 Низкая"}
+        header = f"🎯 *Разборы {BRAND.character.name} — на сегодня*\n_Точность: {accuracy_label}_\n"
+    elif lang == "es":
         header = f"🎯 *Picks de {BRAND.character.name} — hoy*\n_Precisión histórica: {accuracy_label}_\n"
     else:
         header = f"🎯 *{BRAND.character.name}'s Picks — today*\n_Historical accuracy: {accuracy_label}_\n"
