@@ -50,6 +50,16 @@ def _admin_ids():
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
+# Visible privacy + 18+ disclaimer appended to the very first screen every user
+# (and every ad-moderation reviewer) sees. Plain text + bare URL so it renders
+# correctly under BOTH Markdown and HTML parse modes. URL matches /policy.
+PRIVACY_URL = "https://metaarena.s26636274.workers.dev/privacy"
+START_LEGAL_FOOTER = {
+    "en": f"\n\n———\n18+ · Informational only, not betting/financial advice.\nPrivacy Policy: {PRIVACY_URL}",
+    "es": f"\n\n———\n18+ · Solo información, no es asesoramiento de apuestas/financiero.\nPolítica de Privacidad: {PRIVACY_URL}",
+    "ru": f"\n\n———\n18+ · Только информация, не беттинг/финансовый совет.\nПолитика конфиденциальности: {PRIVACY_URL}",
+}
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user    = update.effective_user
@@ -73,6 +83,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         update_user(user.id, lang=lang)
     caption = HOOK_CAPTION.get(lang, HOOK_CAPTION["en"])
+    caption = caption + START_LEGAL_FOOTER.get(lang, START_LEGAL_FOOTER["en"])
     menu    = main_menu(lang)
     # Try branded image first (pics/19.png), then hook.png, then text
     sent = await send_pic(context.bot, chat_id, "start", caption, lang, reply_markup=menu)
