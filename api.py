@@ -301,7 +301,7 @@ async def handle_request(reader: asyncio.StreamReader, writer: asyncio.StreamWri
                 status, body = await handle_upcoming()
             elif path == "/api/picks":
                 lang = (qs.get("lang", ["en"])[0] or "en").lower()
-                if lang not in ("en", "es"):
+                if lang not in ("en", "ru", "es"):
                     lang = "en"
                 status, body = await handle_picks(lang, _uid())
             elif path == "/api/membership":

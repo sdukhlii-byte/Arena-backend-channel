@@ -41,8 +41,13 @@ _POSITIVE_TTL = 600.0  # сек
 
 
 def channel_configured() -> bool:
-    """Гейтинг возможен только если канал настроен (есть @handle / id)."""
-    return bool(CHANNEL_CHAT_REF)
+    """Гейтинг возможен только если канал настроен (есть реальный @handle / id).
+    Плейсхолдер 'your_channel' настоящим каналом не считаем — иначе гейт запер бы
+    контент против несуществующего канала ещё до настройки."""
+    ref = (CHANNEL_CHAT_REF or "").strip()
+    if not ref or "your_channel" in ref.lower():
+        return False
+    return True
 
 
 async def is_member(uid: int, *, use_cache: bool = True) -> bool:
