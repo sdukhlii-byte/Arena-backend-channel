@@ -56,19 +56,10 @@ def _assistant_system(lang: str, state: str, prefs: dict, real_live: list, real_
     from brand import BRAND, CTAMode
     is_channel = BRAND.cta.mode is CTAMode.CHANNEL
 
-<<<<<<< HEAD
     lang_instr = {
         "ru": "Отвечай по-русски, живым разговорным тоном, коротко.",
         "es": "Respond in Spanish (Latin American, casual).",
     }.get(lang, "Respond in English (casual, direct).")
-=======
-    lang_instr = (
-        "Отвечай по-русски, в живом разговорном тоне, коротко."
-        if is_channel else
-        ("Respond in Spanish (Latin American, casual)." if lang == "es"
-         else "Respond in English (casual, direct).")
-    )
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
     persona = BRAND.character.persona.format(
         name=BRAND.character.name,
         role=BRAND.character.role,

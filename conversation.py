@@ -327,14 +327,10 @@ async def handle_menu_action(bot: Bot, user_id: int, chat_id: int, lang: str, ac
         text    = format_livescore_message(display["live"], lang, is_mock=is_mock)
         if state not in (State.DEPOSITED, State.REPEAT) and not is_mock:
             if BRAND.cta.mode is CTAMode.CHANNEL:
-<<<<<<< HEAD
                 text += {
                     "ru": "\n\n💡 _Полные разборы этих матчей — в канале._",
                     "es": "\n\n💡 _Los análisis completos de estos partidos — en el canal._",
                 }.get(lang, "\n\n💡 _Full breakdowns of these matches — in the channel._")
-=======
-                text += "\n\n💡 _Полные разборы этих матчей — в канале._"
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
             else:
                 text += (
                     "\n\n💡 _¿Querés actuar? Para eso uso Coinplay._"

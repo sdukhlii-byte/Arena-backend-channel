@@ -223,16 +223,11 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
         pct = int(real_stats["correct"] / real_stats["total"] * 100)
         accuracy_label = f"{pct}% ({real_stats['correct']}/{real_stats['total']} picks)"
     elif CTA_MODE == CTAMode.CHANNEL or HONEST_STATS:
-<<<<<<< HEAD
         # Доверие = валюта конверсии: не показываем дутый win_rate без реальных данных.
         accuracy_label = {
             "ru": f"набираем статистику ({real_stats['correct']}/{real_stats['total']})",
             "es": f"acumulando ({real_stats['correct']}/{real_stats['total']})",
         }.get(lang, f"accumulating ({real_stats['correct']}/{real_stats['total']})")
-=======
-        # Доверие = валюта конверсии: не показываем дутый win_rate, пока нет реальных данных.
-        accuracy_label = f"набираем статистику ({real_stats['correct']}/{real_stats['total']})"
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
     else:
         pct = int(win_rate * 100)
         accuracy_label = f"{pct}% (accumulating...)" if lang == "en" else f"{pct}% (acumulando...)"
@@ -242,20 +237,10 @@ def format_predictions_message(picks: list[dict], lang: str, win_rate: float = M
         "es": {"High": "🔥 Alta", "Medium": "⚡ Media", "Low": "💡 Baja"},
     }.get(lang, {"High": "🔥 High", "Medium": "⚡ Medium", "Low": "💡 Low"})
 
-<<<<<<< HEAD
     header = {
         "ru": f"🎯 *Разборы {BRAND.character.name} — на сегодня*\n_Точность: {accuracy_label}_\n",
         "es": f"🎯 *Picks de {BRAND.character.name} — hoy*\n_Precisión: {accuracy_label}_\n",
     }.get(lang, f"🎯 *{BRAND.character.name}'s Picks — today*\n_Accuracy: {accuracy_label}_\n")
-=======
-    if CTA_MODE == CTAMode.CHANNEL:
-        conf_map = {"High": "🔥 Высокая", "Medium": "⚡ Средняя", "Low": "💡 Низкая"}
-        header = f"🎯 *Разборы {BRAND.character.name} — на сегодня*\n_Точность: {accuracy_label}_\n"
-    elif lang == "es":
-        header = f"🎯 *Picks de {BRAND.character.name} — hoy*\n_Precisión histórica: {accuracy_label}_\n"
-    else:
-        header = f"🎯 *{BRAND.character.name}'s Picks — today*\n_Historical accuracy: {accuracy_label}_\n"
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
 
     lines = [header]
     for p in picks:

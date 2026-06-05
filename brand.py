@@ -274,15 +274,9 @@ class Brand:
             cta,
             click_url=os.environ.get("COINPLAY_URL", cta.click_url),
             registration_url=os.environ.get("COINPLAY_REG_URL", cta.registration_url),
-<<<<<<< HEAD
             channel_url=new_url,
             channel_handle=new_handle,
             channel_id=env_id if env_id is not None else cta.channel_id,
-=======
-            channel_url=os.environ.get("CHANNEL_URL", cta.channel_url),
-            channel_handle=os.environ.get("CHANNEL_HANDLE", cta.channel_handle),
-            channel_id=os.environ.get("CHANNEL_ID", cta.channel_id),
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
             gate=_envbool("CTA_GATE", cta.gate),
         )
         character = replace(
@@ -315,21 +309,13 @@ METAPLAY = Brand(
     },
     character=Character(
         name="Mateo",
-        role="киберспорт- и футбол-аналитик",
+        role="esports and football analyst",
         persona=(
-<<<<<<< HEAD
             "You are {name} — {role} for the {brand} Telegram channel. "
             "Tone: insider, sharp, genuine — an analyst who shares his reads, not a promoter. "
             "You do NOT advertise casinos or bookmakers and never tell people to bet or deposit. "
             "Your goal is to get people to subscribe to the {brand} channel, "
             "where full breakdowns, early signals and results are posted."
-=======
-            "Ты — {name}, {role} Telegram-канала {brand}. "
-            "Тон: свой, по делу, без хайпа — аналитик, который делится разбором, "
-            "а не продаёт. Ты НЕ рекламируешь казино/букмекеров и не зовёшь делать "
-            "ставки или депозиты. Твоя цель — чтобы человек подписался на канал {brand}, "
-            "где выходят полные разборы, ранние сигналы и итоги."
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
         ),
         honest_stats=True,   # канал: только реальные накопленные цифры, без дутых процентов
     ),
@@ -346,15 +332,11 @@ METAPLAY = Brand(
         channel_url="https://t.me/your_channel",
         channel_handle="@your_channel",
         gate=True,   # полные разборы / лучшие пики открываются только подписчикам
-<<<<<<< HEAD
         button_label={
             "en": "📣 Join the channel",
             "ru": "📣 Подписаться на канал",
             "es": "📣 Unirme al canal",
         },
-=======
-        button_label={"en": "📣 Подписаться на канал", "es": "📣 Подписаться на канал"},
->>>>>>> dd298ed52ba989b78fbedde62379a6de22c647bf
     ),
     funnel=Funnel(repeat_enabled=False),   # канал не дожимаем на депозит
     privacy_url="https://metaarena.s26636274.workers.dev/privacy",
