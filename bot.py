@@ -53,7 +53,7 @@ def _admin_ids():
 # Visible privacy + 18+ disclaimer appended to the very first screen every user
 # (and every ad-moderation reviewer) sees. Plain text + bare URL so it renders
 # correctly under BOTH Markdown and HTML parse modes. URL matches /policy.
-PRIVACY_URL = "https://metaarena.s26636274.workers.dev/privacy"
+PRIVACY_URL = "https://arenafronend.s26636274.workers.dev/privacy"
 START_LEGAL_FOOTER = {
     "en": f"\n\n———\n18+ · Informational only, not betting/financial advice.\nPrivacy Policy: {PRIVACY_URL}",
     "es": f"\n\n———\n18+ · Solo información, no es asesoramiento de apuestas/financiero.\nPolítica de Privacidad: {PRIVACY_URL}",
@@ -239,14 +239,14 @@ async def cmd_policy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔒 *Política de Privacidad*\n\n"
             "MetaPlay recopila únicamente tu ID de Telegram para personalizar el análisis.\n"
             "No almacenamos datos de pago ni información personal sensible.\n\n"
-            "[Leer política completa →](https://metaarena.s26636274.workers.dev/privacy)"
+            "[Leer política completa →](https://arenafronend.s26636274.workers.dev/privacy)"
         )
     else:
         text = (
             "🔒 *Privacy Policy*\n\n"
             "MetaPlay collects only your Telegram ID to personalise analysis.\n"
             "We don't store payment data or sensitive personal information.\n\n"
-            "[Read full policy →](https://metaarena.s26636274.workers.dev/privacy)"
+            "[Read full policy →](https://arenafronend.s26636274.workers.dev/privacy)"
         )
     await update.message.reply_text(
         text,

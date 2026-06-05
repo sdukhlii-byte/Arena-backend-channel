@@ -339,7 +339,7 @@ METAPLAY = Brand(
         },
     ),
     funnel=Funnel(repeat_enabled=False),   # канал не дожимаем на депозит
-    privacy_url="https://metaarena.s26636274.workers.dev/privacy",
+    privacy_url="https://arenafronend.s26636274.workers.dev/privacy",
     copy_pack="copy_metaplay_channel",
 )
 
